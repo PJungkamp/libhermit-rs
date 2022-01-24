@@ -325,12 +325,12 @@ impl Clone for TaskTLS {
 	}
 }
 
-#[cfg(not(target_os = "hermit"))]
+#[cfg(not(any(target_os = "hermit", target_os = "none")))]
 extern "C" fn task_start(_f: extern "C" fn(usize), _arg: usize, _user_stack: u64) -> ! {
 	unimplemented!()
 }
 
-#[cfg(target_os = "hermit")]
+#[cfg(any(target_os = "hermit", target_os = "none"))]
 #[naked]
 extern "C" fn task_start(_f: extern "C" fn(usize), _arg: usize, _user_stack: u64) -> ! {
 	// `f` is in the `rdi` register
@@ -401,6 +401,7 @@ impl TaskFrame for Task {
 
 extern "x86-interrupt" fn timer_handler(_stack_frame: irq::ExceptionStackFrame) {
 	increment_irq_counter(apic::TIMER_INTERRUPT_NUMBER.into());
+    debug!("Receive timer interrupt");
 	core_scheduler().handle_waiting_tasks();
 	apic::eoi();
 	core_scheduler().scheduler();

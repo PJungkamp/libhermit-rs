@@ -6,7 +6,7 @@ use crate::environment;
 #[cfg(feature = "newlib")]
 use crate::synch::spinlock::SpinlockIrqSave;
 use crate::syscalls::interfaces::SyscallInterface;
-#[cfg(target_os = "hermit")]
+#[cfg(any(target_os = "hermit", target_os = "none"))]
 use crate::{__sys_free, __sys_malloc, __sys_realloc};
 
 pub use self::condvar::*;
@@ -32,6 +32,7 @@ mod spinlock;
 mod system;
 mod tasks;
 mod timer;
+mod irq;
 
 #[cfg(feature = "newlib")]
 const LWIP_FD_BIT: i32 = 1 << 30;
@@ -60,19 +61,19 @@ pub fn init() {
 	sbrk_init();
 }
 
-#[cfg(target_os = "hermit")]
+#[cfg(any(target_os = "hermit", target_os = "none"))]
 #[no_mangle]
 pub extern "C" fn sys_malloc(size: usize, align: usize) -> *mut u8 {
 	__sys_malloc(size, align)
 }
 
-#[cfg(target_os = "hermit")]
+#[cfg(any(target_os = "hermit", target_os = "none"))]
 #[no_mangle]
 pub extern "C" fn sys_realloc(ptr: *mut u8, size: usize, align: usize, new_size: usize) -> *mut u8 {
 	__sys_realloc(ptr, size, align, new_size)
 }
 
-#[cfg(target_os = "hermit")]
+#[cfg(any(target_os = "hermit", target_os = "none"))]
 #[no_mangle]
 pub extern "C" fn sys_free(ptr: *mut u8, size: usize, align: usize) {
 	__sys_free(ptr, size, align)

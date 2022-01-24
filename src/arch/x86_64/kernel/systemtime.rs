@@ -25,14 +25,14 @@ const CMOS_BINARY_FORMAT_FLAG: u8 = 1 << 2;
 const CMOS_12_HOUR_PM_FLAG: u8 = 0x80;
 
 struct Rtc {
+    enable_irq: bool,
 	cmos_format: u8,
 }
 
 impl Rtc {
 	fn new() -> Self {
-		irq::disable();
-
 		Self {
+            enable_irq: irq::nested_disable(),
 			cmos_format: Self::read_cmos_register(CMOS_STATUS_REGISTER_B),
 		}
 	}
@@ -172,7 +172,9 @@ impl Rtc {
 
 impl Drop for Rtc {
 	fn drop(&mut self) {
-		irq::enable();
+        if self.enable_irq {
+		    irq::enable();
+        }
 	}
 }
 

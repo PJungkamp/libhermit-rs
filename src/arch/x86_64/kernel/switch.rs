@@ -2,6 +2,7 @@ use core::{mem, ptr};
 
 use crate::percore;
 use crate::set_current_kernel_stack;
+use crate::arch::kernel::irq;
 
 #[cfg(feature = "fsgsbase")]
 macro_rules! push_fs {
@@ -165,13 +166,13 @@ macro_rules! kernel_function_impl {
 					};
 				)*
 
+                let irq = irq::nested_disable();
+
 				let ret: u64;
 				asm!(
 					// Save user stack pointer and switch to kernel stack
-					"cli",
 					"mov r12, rsp",
 					"mov rsp, {kernel_stack_ptr}",
-					"sti",
 
 					// To make sure, Rust manages the stack in `f` correctly,
 					// we keep all arguments and return values in registers
@@ -180,9 +181,7 @@ macro_rules! kernel_function_impl {
 					"call {f}",
 
 					// Switch back to user stack
-					"cli",
 					"mov rsp, r12",
-					"sti",
 
 					f = in(reg) f,
 					kernel_stack_ptr = in(reg) percore::get_kernel_stack(),
@@ -197,6 +196,8 @@ macro_rules! kernel_function_impl {
 
 					clobber_abi("C"),
 				);
+
+                irq::nested_enable(irq);
 
 				// SAFETY: R is smaller than usize and directly fits in rax
 				// Since f returns R, we can safely convert ret to R

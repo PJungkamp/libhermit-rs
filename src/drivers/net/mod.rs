@@ -11,6 +11,8 @@ use crate::arch::kernel::percore::*;
 use crate::synch::semaphore::*;
 use crate::synch::spinlock::SpinlockIrqSave;
 
+use core::sync::atomic::{Ordering, AtomicBool};
+
 /// A trait for accessing the network interface
 pub trait NetworkInterface {
 	/// Returns the mac address of the device.
@@ -38,11 +40,10 @@ pub trait NetworkInterface {
 }
 
 static NET_SEM: Semaphore = Semaphore::new(0);
+pub(crate) static THREADS_IN_POLLING_MODE: SpinlockIrqSave<usize> = SpinlockIrqSave::new(0);
 
 /// set driver in polling mode and threads will not be blocked
 pub extern "C" fn set_polling_mode(value: bool) {
-	static THREADS_IN_POLLING_MODE: SpinlockIrqSave<usize> = SpinlockIrqSave::new(0);
-
 	let mut guard = THREADS_IN_POLLING_MODE.lock();
 
 	if value {
@@ -51,7 +52,7 @@ pub extern "C" fn set_polling_mode(value: bool) {
 		if *guard == 1 {
 			#[cfg(feature = "pci")]
 			if let Some(driver) = crate::arch::kernel::pci::get_network_driver() {
-				driver.lock().set_polling_mode(value)
+				driver.lock().set_polling_mode(true);
 			}
 		}
 	} else {
@@ -60,14 +61,18 @@ pub extern "C" fn set_polling_mode(value: bool) {
 		if *guard == 0 {
 			#[cfg(feature = "pci")]
 			if let Some(driver) = crate::arch::kernel::pci::get_network_driver() {
-				driver.lock().set_polling_mode(value)
+				driver.lock().set_polling_mode(false);
 			}
+            // we may have missed packets so be sure and wake once
+            netwakeup();
 		}
 	}
 }
 
 pub extern "C" fn netwait() {
 	NET_SEM.acquire(None);
+    let num_wakeups = core::iter::from_fn(|| NET_SEM.try_acquire().then(|| ())).count();
+    debug!("handling {} wakeups", num_wakeups);
 }
 
 pub fn netwakeup() {

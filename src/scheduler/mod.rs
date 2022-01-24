@@ -401,6 +401,7 @@ impl PerCoreScheduler {
 
 		loop {
 			irq::disable();
+            
 			if !self.scheduler() {
 				backoff.reset()
 			}
@@ -412,6 +413,7 @@ impl PerCoreScheduler {
 			// This atomic operation guarantees that we cannot miss a wakeup interrupt in between.
 			if !wakeup_tasks {
 				if backoff.is_completed() {
+                    debug!("idle until interrupt");
 					irq::enable_and_wait();
 				} else {
 					irq::enable();
